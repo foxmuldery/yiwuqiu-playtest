@@ -1,0 +1,197 @@
+:root { --amber: #f0b44a; --ink: #e9e4d8; --dim: #a59f92; --bg: rgba(18, 20, 22, 0.86); }
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; overflow: hidden; background: #0d0e0f; color: var(--ink);
+  font-family: "PingFang SC", "Noto Sans CJK SC", "Hiragino Sans GB", sans-serif; }
+canvas#view { position: fixed; inset: 0; width: 100vw; height: 100vh; display: block; }
+/* V5：检查扫视时的暗角层（默认很轻；JS 只改 opacity，过渡交给 CSS） */
+#vignette { position: fixed; inset: 0; z-index: 2; pointer-events: none; opacity: .32; transition: opacity .3s linear;
+  background-image: url('assets/ui/film-grain.jpg'), radial-gradient(ellipse at 50% 46%, rgba(0,0,0,0) 40%, rgba(0,0,0,.62) 100%);
+  background-size: 280px 280px, cover;
+  background-blend-mode: overlay, normal; }
+#hud { position: fixed; inset: 0; z-index: 3; pointer-events: none; }
+#build { position: absolute; left: 10px; bottom: 8px; font-size: 11px; color: var(--dim); opacity: .8; }
+#phaseTag { position: absolute; left: 14px; top: 12px; font-size: 13px; color: var(--dim); }
+#objectives { position: absolute; left: 14px; top: 36px; margin: 0; padding: 8px 10px 8px 24px; list-style: decimal;
+  font-size: 12px; line-height: 1.55; color: var(--ink); background: rgba(8, 8, 8, 0.42); border-radius: 6px;
+  max-width: 260px; pointer-events: none; }
+#objectives li { margin: 0; padding: 0; }
+#objectives li.done { color: var(--dim); text-decoration: line-through; opacity: 0.7; }
+#objectives li.done::marker { content: "✓  "; }
+@media (max-height: 520px) { #objectives { display: none; } }
+#crosshair { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -55%); font-size: 22px; color: #fff8; }
+#hint { position: absolute; left: 50%; bottom: 13%; transform: translateX(-50%); padding: 6px 14px; border-radius: 6px;
+  background: var(--bg); font-size: 16px; white-space: nowrap; }
+#hint:empty { display: none; }
+#dirHint { position: absolute; left: 50%; bottom: 19%; transform: translateX(-50%); font-size: 14px; color: var(--ink);
+  background: var(--bg); padding: 4px 10px; border-radius: 6px; }
+#subtitle { position: absolute; left: 50%; bottom: 31%; transform: translateX(-50%); max-width: 80vw; text-align: center;
+  font-size: 18px; padding: 8px 16px; border-radius: 6px; background: var(--bg); }
+#checkBanner { position: absolute; left: 50%; top: 9%; transform: translateX(-50%); padding: 8px 18px; border-radius: 6px;
+  font-size: 18px; font-weight: 600; border: 2px solid var(--amber); background: var(--bg); color: var(--amber); }
+#checkBanner.seen { background: var(--amber); color: #1a1408; }
+#checkBanner.exposing { padding-bottom: 11px; overflow: hidden; box-shadow: inset 0 -4px 0 rgba(0,0,0,.30); }
+#checkBanner.exposing::after { content: ""; position: absolute; left: 0; bottom: 0; height: 4px; width: calc(var(--exp, 0) * 100%);
+  background: #b8241a; transition: width 60ms linear; }
+#checkBanner.seen::before { content: "◉ "; }
+#checkBanner.warn::before { content: "▲ "; }
+/* 首玩一次性教练条：只解释“现在该做什么”，不挡视线、不暂停计时 */
+#coach { position: absolute; left: 50%; top: 15.5%; transform: translateX(-50%); max-width: min(620px, 86vw); text-align: center;
+  padding: 9px 16px; border-radius: 8px; font-size: 15px; line-height: 1.5; color: var(--ink);
+  background: rgba(14, 16, 16, .88); border: 1px solid var(--amber); box-shadow: 0 4px 24px #000a; }
+#coach b { color: var(--amber); }
+body.modal-open #coach { display: none; }
+body.lowmotion #coach { animation: none; }
+#windowBar { position: absolute; left: 50%; top: 4%; transform: translateX(-50%); width: 320px; height: 22px;
+  border: 1px solid var(--ink); border-radius: 4px; overflow: hidden; background: var(--bg); }
+#windowFill { height: 100%; background: repeating-linear-gradient(45deg, #9fb7a2, #9fb7a2 8px, #8aa58d 8px, #8aa58d 16px); }
+#windowText { position: absolute; inset: 0; text-align: center; font-size: 13px; line-height: 22px; color: #111; font-weight: 600; }
+#studyOverlay { position: absolute; left: 50%; bottom: 0; transform: translateX(-50%); width: 38vw; max-width: 480px; height: 22vh; }
+#studyOverlay .paper { position: absolute; inset: 0; background: #ece6d2; border-radius: 6px 6px 0 0; box-shadow: 0 -6px 30px #0009;
+  transform-origin: bottom; animation: rise .2s ease-out; }
+#studyOverlay .lines { position: absolute; inset: 18px 24px; background: repeating-linear-gradient(#ece6d2 0 22px, #b9c4d6 22px 23px); }
+#studyOverlay .pen { position: absolute; width: 8px; height: 90px; background: #c9a24a; border-radius: 2px; top: 30px; left: 30%;
+  transform: rotate(28deg); animation: write 1.1s ease-in-out infinite alternate; }
+@keyframes rise { from { transform: translateY(40%); } to { transform: none; } }
+@keyframes write { 0% { left: 18%; top: 34px; } 50% { left: 52%; top: 40px; } 100% { left: 78%; top: 58px; } }
+body.lowmotion #studyOverlay .paper, body.lowmotion #studyOverlay .pen { animation: none; }
+
+#view { touch-action: none; }
+#stick { position: fixed; left: 18px; bottom: 18px; width: 116px; height: 116px; border-radius: 50%;
+  border: 1px solid #ffffff2e; background: #00000059; touch-action: none; }
+#knob { position: absolute; left: 50%; top: 50%; width: 46px; height: 46px; margin: -23px 0 0 -23px; border-radius: 50%;
+  background: #ffffff33; border: 1px solid #ffffff5a; will-change: transform; }
+body.touchmode #touch button { padding: 10px 14px; font-size: 16px; min-width: 56px; min-height: 44px; }
+/* 手机竖屏：只提示横屏更顺手，不强制旋转（iPad 竖握也是有效姿势） */
+#rotateHint { display: none; position: fixed; right: calc(12px + env(safe-area-inset-right)); top: calc(10px + env(safe-area-inset-top));
+  z-index: 6; font-size: 13px; color: var(--amber); background: rgba(8, 8, 8, .66); padding: 4px 10px; border-radius: 6px; pointer-events: none; }
+@media (orientation: portrait) and (pointer: coarse) and (max-width: 820px) { body.touchmode.playing:not(.modal-open) #rotateHint { display: block; } }
+.touchonly { display: none; }
+body.touchmode .touchonly { display: block; }
+body.touchmode #build { display: none; }   /* 触屏上让开摇杆，版本号只留在桌面/证据 HUD */
+#touch { position: fixed; right: 12px; bottom: 12px; display: flex; gap: 8px; }
+body.modal-open #stick, body.modal-open #touch { display: none; }   /* 弹层期间收起触屏控件，避免压在遮罩上 */
+#touch button, .card button, #startBtn { font: inherit; font-size: 15px; padding: 8px 14px; border-radius: 6px;
+  border: 1px solid #fff3; background: #2a2c2e; color: var(--ink); cursor: pointer; }
+#touch button:hover, .card button:hover, #startBtn:hover { background: #3a3d40; }
+.card button.primary, #startBtn { background: #6e5622; border-color: var(--amber); }
+
+#modal { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; background: #0008; }
+.card { min-width: 380px; max-width: min(720px, 92vw); max-height: 88vh; overflow: auto; background: #1c1d1f; border: 1px solid #fff2;
+  border-radius: 10px; padding: 22px 26px; }
+.card h2 { margin: 0 0 12px; font-size: 20px; }
+.card .row { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 16px; }
+.card .note { color: var(--dim); font-size: 13px; margin-top: 10px; }
+.paperdoc { color: #1c1914; padding: 16px 20px; border-radius: 4px; font-family: "Songti SC", "STSong", serif;
+  font-size: 17px; line-height: 1.8; background-color: #e8e1c9; background-size: cover; background-position: center;
+  background-blend-mode: multiply; box-shadow: inset 0 0 0 1px rgba(0,0,0,.1); text-shadow: 0 0 1px rgba(255,255,255,.3); }
+.paperdoc.clue-schedule { background-image: url('assets/ui/clues/schedule.jpg'); }
+.paperdoc.clue-guide { background-image: url('assets/ui/clues/guide.jpg'); font-family: "PingFang SC", sans-serif; font-size: 15px; }
+.paperdoc.clue-calib { background-image: url('assets/ui/clues/calib.jpg'); font-size: 16px; }
+.notes { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 10px; }
+.notes .paperdoc { font-size: 14px; padding: 10px 12px; }
+.notes .missing { border: 1px dashed #fff3; color: var(--dim); padding: 10px; border-radius: 4px; font-size: 13px; }
+.clockface { display: flex; align-items: center; justify-content: center; gap: 18px; font-family: "Menlo", monospace; font-size: 54px;
+  background: #e9e3cf; color: #222; border-radius: 12px; padding: 16px; }
+.clockface .knob { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.clockface .knob button { font-size: 18px; padding: 2px 16px; }
+.clockback { background: #cdbf9b; color: #2b2a26; border-radius: 12px; padding: 22px; min-height: 120px; }
+.clockback .slip { background: #f4efdf; padding: 12px 16px; transform: rotate(-2deg); font-family: "Kaiti SC", "STKaiti", serif; font-size: 20px; width: fit-content; }
+.caught { text-align: center; }
+.caught .line { font-size: 24px; margin: 10px 0 16px; }
+.settings label { display: block; margin: 6px 0; }
+.settings select { font: inherit; font-size: 13px; padding: 3px 6px; border-radius: 5px; border: 1px solid #fff3; background: #2a2c2e; color: var(--ink); }
+.result-stats { margin: 12px 0 0; padding-left: 20px; font-size: 14px; line-height: 1.7; color: var(--ink); }
+.result-stats b { color: var(--amber); }
+/* 结算评级：大字 + 一句人话解释；不用颜色区分成败（S 也仍是琥珀，避免“红=失败”的额外压力） */
+.grade { display: flex; align-items: baseline; gap: 12px; margin: 6px 0 0; }
+.grade .g-mark { font-family: "Songti SC", "STSong", serif; font-size: 46px; line-height: 1; color: var(--amber); }
+.grade .g-label { font-size: 17px; font-weight: 600; }
+.grade .g-note { color: var(--dim); font-size: 13px; margin: 6px 0 0; }
+
+.screen { position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  background: radial-gradient(circle at 50% 40%, #2a2e2b, #0d0e0f); text-align: center; padding: 20px; }
+.screen h1 { font-size: 64px; letter-spacing: .3em; margin: 0 0 8px; font-family: "Songti SC", "STSong", serif; }
+.screen .sub { color: var(--dim); }
+.screen .keys { list-style: none; padding: 0; line-height: 2; }
+.screen .warn { color: var(--amber); font-size: 14px; max-width: 560px; }
+.screen .fine { color: var(--dim); font-size: 12px; max-width: 560px; margin-top: 18px; }
+/* 标题页难度：两个按钮，选中态用琥珀色（与游戏内主按钮一致） */
+.screen .modes { display: flex; gap: 8px; margin: 6px 0 2px; }
+.screen .modes button { font: inherit; font-size: 15px; padding: 7px 22px; border-radius: 6px; border: 1px solid #fff3;
+  background: #24262a; color: var(--dim); cursor: pointer; }
+.screen .modes button.on { border-color: var(--amber); color: #1a1408; background: var(--amber); font-weight: 600; }
+.screen .mode-note { font-size: 13px; margin: 4px 0 2px; }
+/* 矮屏（720p 笔记本 / 横屏手机）：标题页不裁切，弱化最底部的来源说明 */
+@media (max-height: 700px) {
+  .screen h1 { font-size: 48px; margin-bottom: 4px; }
+  .screen .keys { line-height: 1.7; font-size: 14px; }
+  .screen .fine { display: none; }
+}
+#startBtn { font-size: 20px; padding: 10px 40px; margin-top: 10px; }
+[hidden] { display: none !important; }
+
+/* YWQ-STYLE-A：低分辨率画面按像素放大；HUD 是 DOM，保持清晰 */
+body.style-a canvas#view { image-rendering: pixelated; }
+
+button.danger { border-color: #6b2a20; color: #d98b7a; }
+button.danger:hover { background: #2a1512; }
+#modalCard input[type="range"] { width: 120px; vertical-align: middle; }
+/* 触屏命中区：暂停/结算卡的按钮也是手指点的，和 #touch 一样按 44 px 下限（实测原来只有 39 px） */
+.card button { min-height: 44px; }
+/* 横屏手机 / 矮视口（844×390 这类）：整张暂停卡原来溢出 212 px，主操作按钮被挤到折叠线以下。
+   这里压缩非交互间距（不改字号到不可读、不改命中区），并把最后一行主操作做成 sticky，
+   保证「继续 / 线索笔记 / 重开本局 / 回到标题」永远可以一指点到，不用先滚动。 */
+@media (max-height: 560px) {
+  .card { padding: 10px 14px; max-height: 96vh; }
+  .card h2 { font-size: 17px; margin-bottom: 6px; }
+  .card .row { margin-top: 8px; gap: 6px; }
+  .card .note { margin-top: 4px; font-size: 12px; }
+  .settings label { margin: 2px 0; font-size: 12.5px; line-height: 1.35; }
+  .settings .rec-note { margin: 2px 0; font-size: 12px; }
+  .card .row:last-of-type { position: sticky; bottom: -10px; background: #1c1d1f; padding: 8px 0 2px; margin-top: 6px; }
+  /* 卡片本身不再滚动：设置区自己滚，标题与主操作行常驻。
+     这样 844×390 上不会出现“整张卡在滚、主按钮被卷走”的情况。 */
+  #modalCard { display: flex; flex-direction: column; overflow: hidden; }
+  #modalCard > .settings { overflow: auto; min-height: 0; }
+  #modalCard > .row:last-of-type { flex: none; }
+  #modalCard > h2, #modalCard > .note { flex: none; }
+}
+/* 720p / 小笔记本：设置项较多时卡片会溢出 16px，把“回到标题”挤到折叠线以下。
+   收紧间距（不改字号与命中区），保证整行按钮在首屏可见。 */
+@media (max-height: 800px) {
+  .card { padding: 16px 22px; }
+  .card h2 { margin-bottom: 8px; }
+  .card .row { margin-top: 12px; }
+  .card .note { margin-top: 6px; }
+  .settings label { margin: 4px 0; }
+}
+
+
+/* ---------------------------------------------------------------- 触屏 / iPad 适配（审计 I7/I8）与交互提示 */
+#crosshair.aim { color: var(--amber); font-size: 20px; }
+#lockHint { position: absolute; left: 50%; top: 56%; transform: translateX(-50%); font-size: 14px; color: var(--amber);
+  background: rgba(8, 8, 8, 0.62); padding: 6px 12px; border-radius: 6px; }
+body.touchmode #phaseTag { font-size: 15px; }
+body.touchmode #objectives { font-size: 14px; line-height: 1.6; }
+body.touchmode #hint { font-size: 17px; }
+body.touchmode #dirHint { font-size: 15px; }
+/* 刘海屏 / iPad 圆角安全区：只挪 HUD 角标与触屏控件，不动画布 */
+#phaseTag { left: calc(14px + env(safe-area-inset-left)); top: calc(12px + env(safe-area-inset-top)); }
+#objectives { left: calc(14px + env(safe-area-inset-left)); top: calc(36px + env(safe-area-inset-top)); }
+#build { left: calc(10px + env(safe-area-inset-left)); }
+#stick { left: calc(18px + env(safe-area-inset-left)); bottom: calc(18px + env(safe-area-inset-bottom)); }
+#touch { right: calc(12px + env(safe-area-inset-right)); bottom: calc(12px + env(safe-area-inset-bottom)); }
+
+/* ---------------------------------------------------------------- 试玩记录器（内测；默认收起为右下角一颗小按钮） */
+#recBtn { position: fixed; right: calc(12px + env(safe-area-inset-right)); bottom: calc(12px + env(safe-area-inset-bottom));
+  z-index: 7; font: inherit; font-size: 12px; letter-spacing: .3px; padding: 6px 11px; border-radius: 999px;
+  border: 1px solid #5c5750; background: rgba(10, 12, 12, .72); color: var(--dim); cursor: pointer; opacity: .55;
+  transition: opacity .18s, color .18s, border-color .18s; }
+#recBtn:hover { opacity: 1; color: var(--ink); border-color: var(--amber); }
+#recBtn.on { opacity: 1; color: #f6d7c0; border-color: #a4472f; background: rgba(60, 16, 10, .82); }
+#recBtn.on::before { content: ''; }
+body.modal-open #recBtn { display: none; }           /* 弹层里改用卡片按钮，避免压住设置项 */
+body:not(.playing) #recBtn { display: none; }        /* 标题页不出现 */
+body.touchmode #recBtn { bottom: calc(64px + env(safe-area-inset-bottom)); opacity: .8; }  /* 让开触屏按钮条 */
+.rec-note { font-size: 12px; color: var(--dim); margin-top: 8px; }
+.card .row .rec { border-color: #4c463c; }

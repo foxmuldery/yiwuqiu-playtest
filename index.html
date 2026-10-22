@@ -1,0 +1,209 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="robots" content="noindex,nofollow">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>一屋囚 · 最小 Demo</title>
+<link rel="stylesheet" href="style.css">
+<script>/* 内测版：没指定画风时默认 fusion（等价于 npm run play）；带 style= 参数时原样尊重 */
+if(!/(^|[?&])style=/.test(location.search)){var q=location.search?location.search+'&style=fusion':'?style=fusion';location.replace(location.pathname+q+location.hash);}</script>
+</head>
+<body>
+<canvas id="view"></canvas>
+<div id="vignette" aria-hidden="true"></div>
+
+<div id="hud">
+  <div id="build"></div>
+  <div id="phaseTag"></div>
+  <ol id="objectives" hidden></ol>
+  <div id="windowBar" hidden><div id="windowFill"></div><span id="windowText"></span></div>
+  <div id="checkBanner" hidden></div>
+  <div id="coach" hidden></div>
+  <div id="subtitle" hidden></div>
+  <div id="hint"></div>
+  <div id="dirHint" hidden></div>
+  <div id="crosshair">·</div>
+  <div id="lockHint" hidden>点击画面继续（鼠标没锁上）</div>
+  <div id="studyOverlay" hidden><div class="paper"><div class="lines"></div><div class="pen"></div></div></div>
+</div>
+
+<div id="stick" hidden><i id="knob"></i></div>
+
+<div id="touch">
+  <button data-act="study">写作业</button>
+  <button data-act="use">查看</button>
+  <button data-act="crouch">蹲</button>
+  <button data-act="notes">笔记</button>
+  <button data-act="pause">暂停</button>
+</div>
+<div id="rotateHint" aria-hidden="true">横屏游玩更顺手</div>
+
+<button id="recBtn" type="button" title="录一段本局画面+声音（F9）；记录 JSON 按 F8 导出">录制本局</button>
+
+<div id="modal" hidden><div class="card" id="modalCard"></div></div>
+
+<div id="title" class="screen">
+  <h1>一屋囚</h1>
+  <p class="sub" id="titleSub">最小 Demo · 灰盒 · 设计依据 V02（探索解谜＋视线检查＋写作业伪装＋失败重启）</p>
+  <ul class="keys">
+    <li><b>WASD / 方向键</b> 步行　<b>鼠标</b> 转头（点击画面锁定）</li>
+    <li><b>空格</b> 在书桌或沙发旁：装作写作业 / 停下</li>
+    <li><b>E</b> 查看　<b>N</b> 线索笔记　<b>Esc</b> 暂停与设置</li>
+    <li class="rec"><b>F9</b> 录制本局（画面+声音）　<b>F8</b> 导出试玩记录</li>
+  </ul>
+  <p class="sub touchonly">触屏：左摇杆走路 · 拖动画面转头 · 右下角四个按钮</p>
+  <div class="modes chapters" id="titleChapters" role="group" aria-label="章节">
+    <button type="button" data-chapter="desk">第一章 · 书桌</button>
+    <button type="button" data-chapter="tv">第二章 · 电视</button>
+  </div>
+  <p class="sub mode-note" id="titleChapterNote"></p>
+  <div class="modes" id="titleModes" role="group" aria-label="难度">
+    <button type="button" data-mode="standard">标准</button>
+    <button type="button" data-mode="mild">温和</button>
+  </div>
+  <p class="sub mode-note" id="titleModeNote"></p>
+  <p class="sub" id="titleBest" hidden></p>
+  <p class="warn">内容提示：家长检查、轻度压迫感、低强度声音惊吓。无暴力与血腥。可在设置中降低恐怖音量。</p>
+  <button id="startBtn">开始</button>
+  <p class="fine">空间按原作参考图锚点做灰盒，尺寸为假定；谜题、台词、家长行为均为游戏改编，不是原片内容。</p>
+</div>
+
+<style>
+  html, body { margin: 0; background: #07080a; }
+  #yqgate { position: fixed; inset: 0; z-index: 9999; display: flex; align-items: center; justify-content: center;
+    background: radial-gradient(120% 90% at 50% 30%, #16181a 0%, #07080a 62%, #000 100%); color: #e9e4d8;
+    font-family: "Songti SC", "STSong", "Noto Serif CJK SC", serif; -webkit-tap-highlight-color: transparent; }
+  #yqgate .box { width: min(88vw, 380px); text-align: center; }
+  #yqgate h1 { margin: 0 0 6px; font-size: 40px; font-weight: 600; letter-spacing: .32em; text-indent: .32em; color: #f0b44a; }
+  #yqgate .tag { margin: 0 0 26px; font-size: 12px; letter-spacing: .18em; color: #7d776c; font-family: ui-monospace, Menlo, monospace; }
+  #yqgate input { width: 100%; box-sizing: border-box; padding: 12px 14px; font-size: 17px; letter-spacing: .22em;
+    color: #e9e4d8; background: #101214; border: 1px solid #3a352d; border-radius: 8px; outline: none; text-align: center; }
+  #yqgate input:focus { border-color: #f0b44a; box-shadow: 0 0 0 3px #f0b44a1a; }
+  #yqgate button { margin-top: 12px; width: 100%; padding: 12px 14px; font: inherit; font-size: 16px; letter-spacing: .12em;
+    color: #1a1408; background: #f0b44a; border: 0; border-radius: 8px; cursor: pointer; }
+  #yqgate button:disabled { background: #4a4437; color: #8d8678; cursor: default; }
+  #yqgate .msg { min-height: 22px; margin-top: 12px; font-size: 13px; color: #c96a55; font-family: system-ui, sans-serif; }
+  #yqgate .fine { margin-top: 26px; font-size: 11px; line-height: 1.7; color: #5d5850; font-family: system-ui, sans-serif; }
+  #yqgate.shake .box { animation: yqshake .3s; }
+  @keyframes yqshake { 25% { transform: translateX(-6px) } 50% { transform: translateX(5px) } 75% { transform: translateX(-3px) } }
+  body.yq-locked > *:not(#yqgate) { visibility: hidden; }
+</style>
+<div id="yqgate" role="dialog" aria-modal="true" aria-labelledby="yqgateTitle">
+  <div class="box">
+    <h1 id="yqgateTitle">一屋囚</h1>
+    <p class="tag">内测版 · 请勿外传</p>
+    <input id="yqgatePw" type="password" inputmode="text" autocomplete="off" autocapitalize="off" spellcheck="false"
+           placeholder="内测密码" aria-label="内测密码">
+    <button id="yqgateBtn" type="button">进入</button>
+    <p class="msg" id="yqgateMsg" role="status" aria-live="polite"></p>
+    <p class="fine">内容提示：家长检查、轻度压迫感、低强度声音惊吓；无暴力血腥。<br>试玩过程只在本机记录，不上传。</p>
+  </div>
+</div>
+<script>
+(function () {
+  var C = {"v":1,"alg":"pbkdf2-sha256","iterations":210000,"salt":"f405b7c49b30df6eb5a70adbbf3fc97a","hash":"aa058b5541c3f3966a42021dfbf8a884c4b5f0a093f914a0019a2bb2f50b19d0"};
+  var KEY = 'ywq.gate.f405b7c4';
+  var box = document.getElementById('yqgate');
+  var pw = document.getElementById('yqgatePw');
+  var btn = document.getElementById('yqgateBtn');
+  var msg = document.getElementById('yqgateMsg');
+  var busy = false;
+
+  document.body.classList.add('yq-locked');
+
+  function hex(buf) {
+    var b = new Uint8Array(buf), s = '';
+    for (var i = 0; i < b.length; i++) s += (b[i] < 16 ? '0' : '') + b[i].toString(16);
+    return s;
+  }
+  function same(a, b) { // 定长比较，别用 === 给时间差
+    if (a.length !== b.length) return false;
+    var d = 0;
+    for (var i = 0; i < a.length; i++) d |= a.charCodeAt(i) ^ b.charCodeAt(i);
+    return d === 0;
+  }
+  function derive(password) {
+    var enc = new TextEncoder();
+    return crypto.subtle.importKey('raw', enc.encode(password), 'PBKDF2', false, ['deriveBits'])
+      .then(function (k) {
+        return crypto.subtle.deriveBits({ name: 'PBKDF2', salt: enc.encode(C.salt), iterations: C.iterations, hash: 'SHA-256' }, k, 256);
+      })
+      .then(hex);
+  }
+  function fails() { try { return +(sessionStorage.getItem(KEY + '.f') || 0); } catch (e) { return 0; } }
+  function setFails(n) { try { sessionStorage.setItem(KEY + '.f', String(n)); } catch (e) {} }
+  function waitUntil() { try { return +(sessionStorage.getItem(KEY + '.t') || 0); } catch (e) { return 0; } }
+  function lockFor(sec) { try { sessionStorage.setItem(KEY + '.t', String(Date.now() + sec * 1000)); } catch (e) {} }
+
+  function enter() {
+    if (document.getElementById('ywqBooted')) return;
+    box.parentNode && box.parentNode.removeChild(box);
+    document.body.classList.remove('yq-locked');
+    var s = document.createElement('script');
+    s.type = 'module';
+    s.id = 'ywqBooted';
+    s.src = "main.js";
+    document.body.appendChild(s);
+  }
+
+  function tick() {
+    var left = Math.ceil((waitUntil() - Date.now()) / 1000);
+    if (left > 0) {
+      btn.disabled = true;
+      msg.textContent = '试错次数过多，请等 ' + left + ' 秒';
+      setTimeout(tick, 500);
+    } else if (btn.disabled) {
+      btn.disabled = false;
+      msg.textContent = '';
+    }
+  }
+
+  function unlock(password) {
+    if (!password) return Promise.resolve(false);
+    if (Date.now() < waitUntil()) return Promise.resolve(false);
+    return derive(password).then(function (h) {
+      if (same(h, C.hash)) {
+        setFails(0);
+        try { sessionStorage.setItem(KEY, 'ok'); } catch (e) {}
+        enter();
+        return true;
+      }
+      var n = fails() + 1;
+      setFails(n);
+      if (n >= 5) { lockFor(Math.min(60, 10 * (n - 4))); tick(); }
+      return false;
+    });
+  }
+
+  function submit() {
+    if (busy) return;
+    busy = true;
+    msg.textContent = '';
+    unlock(pw.value).then(function (ok) {
+      busy = false;
+      if (ok) return;
+      pw.value = '';
+      pw.focus();
+      if (Date.now() < waitUntil()) return;
+      box.classList.add('shake');
+      setTimeout(function () { box.classList.remove('shake'); }, 320);
+      msg.textContent = '密码不对（还剩 ' + Math.max(0, 5 - fails()) + ' 次）';
+    });
+  }
+
+  btn.addEventListener('click', submit);
+  pw.addEventListener('keydown', function (e) { if (e.key === 'Enter') submit(); });
+  tick();
+
+  var remembered = false;
+  try { remembered = sessionStorage.getItem(KEY) === 'ok'; } catch (e) {}
+  if (remembered) enter();
+  else setTimeout(function () { pw.focus(); }, 60);
+
+  // 给自动化/自检用：显式走同一条校验路径，不是后门（仍然要密码）
+  window.__gate = { unlock: unlock, enter: enter, get locked() { return !!document.getElementById('yqgate'); } };
+})();
+</script>
+</body>
+</html>
